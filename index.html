@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Animals Globe</title>
+  <meta name="description" content="Explora qué animales se observan en cada zona del mundo." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+  <!-- Globe.gl (incluye three.js) -->
+  <script src="https://unpkg.com/globe.gl"></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Animals Globe</div>
+  <nav class="lang">
+    <button data-lang="es" class="lang-btn active">ES</button>
+    <button data-lang="ca" class="lang-btn">CAT</button>
+  </nav>
+</header>
+
+<main class="layout">
+  <section class="left">
+    <div id="globe"></div>
+    <div class="legend">
+      <span class="dot"></span><span data-i="legend_points">Observaciones recientes</span>
+    </div>
+  </section>
+
+  <section class="right">
+    <form id="searchForm" class="panel">
+      <h2 data-i="search_title">Buscar</h2>
+      <div class="segmented">
+        <label><input type="radio" name="mode" value="animal" checked><span data-i="mode_animal">Animal</span></label>
+        <label><input type="radio" name="mode" value="species"><span data-i="mode_species">Especie</span></label>
+        <label><input type="radio" name="mode" value="place"><span data-i="mode_place">Zona</span></label>
+      </div>
+      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España" aria-label="query">
+      <button class="btn" type="submit" data-i="btn_search">Buscar</button>
+      <p class="hint" data-i="search_hint">Sugerencia: escribe un país, región o el nombre científico.</p>
+    </form>
+
+    <section class="panel" id="results">
+      <h3 data-i="results_title">Resultados</h3>
+      <ul id="list" class="list"></ul>
+    </section>
+
+    <section class="panel" id="details" hidden>
+      <h3 id="title"></h3>
+      <div class="meta">
+        <img id="thumb" alt="" />
+        <div>
+          <div id="sci"></div>
+          <div id="rank"></div>
+        </div>
+      </div>
+      <p id="summary"></p>
+      <a id="wiki" class="link" target="_blank" rel="noopener">Wikipedia</a>
+    </section>
+  </section>
+</main>
+
+<footer class="foot">
+  <span>Datos: iNaturalist + Wikipedia</span>
+</footer>
+
+<script src="./app.js"></script>
+</body>
+</html>
