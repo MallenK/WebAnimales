@@ -121,11 +121,22 @@ if(filtersEl){
 }
 
 /* ==== CesiumJS globe ==== */
-const viewer = new Cesium.Viewer('globe', {
-  animation:false, timeline:false, geocoder:false, homeButton:false, sceneModePicker:false, baseLayerPicker:false,
-  navigationHelpButton:false, fullscreenButton:false, selectionIndicator:false, infoBox:false,
-  imageryProvider: new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' }),
-  terrainProvider: new Cesium.EllipsoidTerrainProvider()
+const viewer = new Cesium.Viewer("globe", {
+  imageryProvider: new Cesium.UrlTemplateImageryProvider({
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    credit: "© OpenStreetMap contributors"
+  }),
+  terrainProvider: new Cesium.EllipsoidTerrainProvider(), // sin datos de elevación
+  baseLayerPicker: false,
+  timeline: false,
+  animation: false,
+  fullscreenButton: false,
+  homeButton: false,
+  geocoder: false,
+  sceneModePicker: false,
+  navigationHelpButton: false,
+  infoBox: false,
+  selectionIndicator: false
 });
 
 // helpers Cesium
