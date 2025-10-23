@@ -74,13 +74,13 @@ $$('.lang-btn').forEach(b => b.addEventListener('click', () => setLang(b.dataset
 setLang('es');
 
 async function fetchJSON(url){
-  const r = await fetch(url, UA);
+  const r = await fetch(url); // sin headers
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   const data = await r.json();
-  // SOLO datos
-  console.log("[DATA]", data);
+  console.log("[DATA]", data); // solo datos
   return data;
 }
+
 
 async function getWikiSummary(preferred){
   const langs = [lang, 'ca', 'es', 'en'];
