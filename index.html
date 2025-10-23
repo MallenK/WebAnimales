@@ -4,11 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Animals Globe</title>
-  <meta name="description" content="Explora qué animales se observan en cada zona del mundo." />
+  <meta name="description" content="Consulta qué animales aparecen en cada zona del mundo." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
-  <!-- Globe.gl (incluye three.js) -->
   <script src="https://unpkg.com/globe.gl"></script>
 </head>
 <body>
@@ -22,7 +21,7 @@
 
 <main class="layout">
   <section class="left">
-    <div id="globe"></div>
+    <div id="globe" aria-label="globo interactivo"></div>
     <div class="legend">
       <span class="dot"></span><span data-i="legend_points">Observaciones recientes</span>
     </div>
@@ -36,9 +35,13 @@
         <label><input type="radio" name="mode" value="species"><span data-i="mode_species">Especie</span></label>
         <label><input type="radio" name="mode" value="place"><span data-i="mode_place">Zona</span></label>
       </div>
-      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España" aria-label="query">
+      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España">
+      <div class="row">
+        <label class="label" for="radiusKm">Radio al hacer clic</label>
+        <input id="radiusKm" type="number" min="10" max="1000" value="250"> <span>km</span>
+      </div>
       <button class="btn" type="submit" data-i="btn_search">Buscar</button>
-      <p class="hint" data-i="search_hint">Sugerencia: escribe un país, región o el nombre científico.</p>
+      <p class="hint" data-i="search_hint">Clic en el globo para listar especies de esa zona.</p>
     </form>
 
     <section class="panel" id="results">
