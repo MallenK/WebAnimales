@@ -1,36 +1,42 @@
-/* ==== Endpoints ==== */
+/* ==== Endpoints con locale ==== */
 const ENDPOINTS = {
-  // iNaturalist v1
-  taxa: (q) => `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(q)}&rank=species`,
-  observations: (p) => {
+  // iNaturalist v1 (añadimos &locale=<es|ca>)
+  taxa: (q, locale) =>
+    `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(q)}&rank=species&locale=${locale}`,
+  observations: (p, locale) => {
     const base = [
       p.taxon_id ? `taxon_id=${p.taxon_id}` : null,
       p.place_id ? `place_id=${p.place_id}` : null,
       (p.lat != null && p.lng != null) ? `lat=${p.lat}&lng=${p.lng}` : null,
       p.radius ? `radius=${p.radius}` : null,
       p.iconic_taxa ? `iconic_taxa=${encodeURIComponent(p.iconic_taxa)}` : null,
+      `locale=${locale}`,
       "order=desc", "order_by=created_at", "geo=true", "verifiable=true",
       `per_page=${p.per_page ?? 200}`
     ].filter(Boolean).join("&");
     return `https://api.inaturalist.org/v1/observations?${base}`;
   },
-  speciesCounts: (p) => {
+  speciesCounts: (p, locale) => {
     const base = [
       p.place_id ? `place_id=${p.place_id}` : null,
       (p.lat != null && p.lng != null) ? `lat=${p.lat}&lng=${p.lng}` : null,
       p.radius ? `radius=${p.radius}` : null,
       p.iconic_taxa ? `iconic_taxa=${encodeURIComponent(p.iconic_taxa)}` : null,
+      `locale=${locale}`,
       "per_page=50"
     ].filter(Boolean).join("&");
     return `https://api.inaturalist.org/v1/observations/species_counts?${base}`;
   },
-  places: (q) => `https://api.inaturalist.org/v1/places/autocomplete?q=${encodeURIComponent(q)}`
+  places: (q, locale) =>
+    `https://api.inaturalist.org/v1/places/autocomplete?q=${encodeURIComponent(q)}&locale=${locale}`
 };
 
 // Wikipedia REST v1 search + summary
 const WIKI = {
-  searchTitle: (lang, q) => `https://${lang}.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=1`,
-  pageSummary: (lang, key) => `https://${lang}.wikipedia.org/w/rest.php/v1/page/summary/${encodeURIComponent(key)}`
+  searchTitle: (lang, q) =>
+    `https://${lang}.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=1`,
+  pageSummary: (lang, key) =>
+    `https://${lang}.wikipedia.org/w/rest.php/v1/page/summary/${encodeURIComponent(key)}`
 };
 
 // ==== i18n ====
@@ -56,7 +62,7 @@ const I18N = {
     results_title: "Resultats"
   }
 };
-let lang = "es";
+let lang = "es"; // 'es' | 'ca'
 
 // ==== Utils ====
 const $ = s => document.querySelector(s);
@@ -81,20 +87,46 @@ async function fetchJSON(url){
   return data;
 }
 
+/* ===== Traducción automática opcional (fallback) =====
+   Usa LibreTranslate público para traducir resúmenes cuando no existen en ES/CAT.
+   targetLang: 'es' | 'ca'
+*/
+async function autoTranslate(text, targetLang){
+  try{
+    if(!text || (targetLang !== 'es' && targetLang !== 'ca')) return text;
+    const res = await fetch('https://libretranslate.com/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: text, source: 'en', target: targetLang })
+    });
+    if(!res.ok) return text;
+    const j = await res.json();
+    return j?.translatedText || text;
+  }catch(_){ return text; }
+}
+
+/* ===== Wikipedia summary multi-idioma con fallback + traducción ===== */
 async function getWikiSummary(preferred){
-  const langs = [lang, 'ca', 'es', 'en'];
-  for(const L of langs){
-    try {
+  // Primero intenta en lang actual, luego 'ca', 'es', y por último 'en'
+  const order = lang === 'es' ? ['es','ca','en'] : ['ca','es','en'];
+  for(const L of order){
+    try{
       const s = await fetchJSON(WIKI.searchTitle(L, preferred));
       const key = s?.pages?.[0]?.key;
       if(!key) continue;
       const j = await fetchJSON(WIKI.pageSummary(L, key));
+      let extract = j?.extract || '';
+      const pageLang = j?.lang || L; // algunos summaries incluyen lang
+      // Si acabamos con inglés pero el usuario quiere es/ca, traducimos
+      if((lang === 'es' || lang === 'ca') && pageLang === 'en'){
+        extract = await autoTranslate(extract, lang);
+      }
       return {
         url: j?.content_urls?.desktop?.page,
-        extract: j?.extract || '',
+        extract,
         thumb: j?.thumbnail?.source || ''
       };
-    } catch(e) {}
+    }catch(_){}
   }
   return {};
 }
@@ -187,7 +219,7 @@ function showDetails(item, pan=false){
 }
 
 // ==== Flujos ====
-// Click en globo -> especies + puntos (aplica filtro)
+// Click en globo -> especies + puntos (aplica filtro y locale)
 globe.onGlobeClick(async ({lat, lng})=>{
   const radius = Number($('#radiusKm').value || 250);
   setSelection(lat,lng,radius);
@@ -201,7 +233,7 @@ async function loadSpeciesByArea({lat, lng, radius}){
   $('#details').hidden = true;
 
   try{
-    const sc = await fetchJSON(ENDPOINTS.speciesCounts(withIconic({ lat, lng, radius })));
+    const sc = await fetchJSON(ENDPOINTS.speciesCounts(withIconic({ lat, lng, radius }), lang));
     const items = [];
     for(const s of (sc.results||[])){
       const t = s.taxon || {};
@@ -216,7 +248,7 @@ async function loadSpeciesByArea({lat, lng, radius}){
     $('#list').innerHTML = '';
     items.slice(0,50).forEach(it=> $('#list').appendChild(li(it)));
 
-    const obs = await fetchJSON(ENDPOINTS.observations(withIconic({ lat, lng, radius, per_page: 200 })));
+    const obs = await fetchJSON(ENDPOINTS.observations(withIconic({ lat, lng, radius, per_page: 200 }), lang));
     points = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] }))
               .filter(p=>Number.isFinite(p.latitude));
     renderPoints(points);
@@ -227,7 +259,7 @@ async function loadSpeciesByArea({lat, lng, radius}){
   }
 }
 
-// Búsqueda por animal/especie/zona (aplica filtro)
+// Búsqueda por animal/especie/zona (aplica filtro y locale)
 $('#searchForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const mode = new FormData(e.target).get('mode');
@@ -237,7 +269,7 @@ $('#searchForm').addEventListener('submit', async (e)=>{
 
   try{
     if(mode === 'place'){
-      const places = await fetchJSON(ENDPOINTS.places(q));
+      const places = await fetchJSON(ENDPOINTS.places(q, lang));
       if(!places.results?.length){ $('#list').innerHTML = '<li>Sin resultados</li>'; renderPoints([]); return; }
       const place = places.results[0];
       const radius = Number($('#radiusKm').value || 250);
@@ -246,7 +278,7 @@ $('#searchForm').addEventListener('submit', async (e)=>{
       window.__lastTaxon = null;
       await loadSpeciesByArea(window.__lastArea);
     } else {
-      const taxa = await fetchJSON(ENDPOINTS.taxa(q));
+      const taxa = await fetchJSON(ENDPOINTS.taxa(q, lang));
       if(!taxa.results?.length){ $('#list').innerHTML = '<li>Sin resultados</li>'; renderPoints([]); return; }
       const t = taxa.results[0];
       window.__lastArea = null;
@@ -269,7 +301,7 @@ async function searchByTaxon({ id, t }){
   $('#list').innerHTML = '';
   $('#list').appendChild(li(item));
 
-  const obs = await fetchJSON(ENDPOINTS.observations(withIconic({ taxon_id: id, per_page: 200 })));
+  const obs = await fetchJSON(ENDPOINTS.observations(withIconic({ taxon_id: id, per_page: 200 }), lang));
   const pts = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] }))
                 .filter(p=>Number.isFinite(p.latitude));
   renderPoints(pts);
