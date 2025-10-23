@@ -35,13 +35,13 @@
         <label><input type="radio" name="mode" value="species"><span data-i="mode_species">Especie</span></label>
         <label><input type="radio" name="mode" value="place"><span data-i="mode_place">Zona</span></label>
       </div>
-      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España">
+      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España" aria-label="Búsqueda">
       <div class="row">
-        <label class="label" for="radiusKm">Radio al hacer clic</label>
-        <input id="radiusKm" type="number" min="10" max="1000" value="250"> <span>km</span>
+        <label class="label" for="radiusKm">Radio al clicar</label>
+        <input id="radiusKm" type="number" min="25" max="1000" value="250"> <span>km</span>
       </div>
       <button class="btn" type="submit" data-i="btn_search">Buscar</button>
-      <p class="hint" data-i="search_hint">Clic en el globo para listar especies de esa zona.</p>
+      <p class="hint" data-i="search_hint">Clica el globo para ver especies de la zona seleccionada.</p>
     </form>
 
     <section class="panel" id="results">
