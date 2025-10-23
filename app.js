@@ -90,20 +90,39 @@ globe.onGlobeClick(async ({lat, lng})=>{
 });
 
 // ==== Data ====
+const WIKI = {
+  searchTitle: (lang, q) => `https://${lang}.wikipedia.org/w/rest.php/v1/search/title?q=${encodeURIComponent(q)}&limit=1`,
+  pageSummary: (lang, key) => `https://${lang}.wikipedia.org/w/rest.php/v1/page/summary/${encodeURIComponent(key)}`
+};
+
+const UA = { headers: { 'Api-User-Agent': 'animals-globe/1.0 (github pages demo)' } };
+
+
 async function fetchJSON(url){
-  const r = await fetch(url);
+  const r = await fetch(url, UA);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
 
-async function getWikiSummary(title){
-  for(const l of [lang, 'ca', 'es', 'en']){
-    try{
-      const j = await fetchJSON(ENDPOINTS.wikiSummary(l, title));
-      if(j && j.extract) return { url: j.content_urls?.desktop?.page, extract: j.extract, thumb: j.thumbnail?.source };
-    }catch(e){}
+async function getWikiSummary(preferred){
+  // preferred: nombre común o científico (p.ej., "Common bottlenose dolphin" o "Tursiops truncatus")
+  const langs = [lang, 'ca', 'es', 'en'];
+  for(const L of langs){
+    try {
+      // 1) buscar título local
+      const s = await fetchJSON(WIKI.searchTitle(L, preferred));
+      const key = s?.pages?.[0]?.key;         // p.ej., "Tursiops_truncatus"
+      if(!key) continue;
+      // 2) summary del título resuelto
+      const j = await fetchJSON(WIKI.pageSummary(L, key));
+      return {
+        url: j?.content_urls?.desktop?.page,
+        extract: j?.extract || '',
+        thumb: j?.thumbnail?.source || ''
+      };
+    } catch(e) { /* probar siguiente idioma */ }
   }
-  return {};
+  return {}; // sin resultados en ningún idioma
 }
 
 function li(item){
