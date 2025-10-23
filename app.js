@@ -99,10 +99,17 @@ const UA = { headers: { 'Api-User-Agent': 'animals-globe/1.0 (github pages demo)
 
 
 async function fetchJSON(url){
-  const r = await fetch(url, UA);
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+  const r = await fetch(url, { headers: { "Api-User-Agent": "animals-globe/1.0 (https://tuusuario.github.io)" } });
+  console.log("[API request]", url);
+  if(!r.ok){
+    console.warn("[API error]", r.status, r.statusText, "URL:", url);
+    throw new Error(`HTTP ${r.status}`);
+  }
+  const j = await r.json();
+  console.log("[API response]", j);
+  return j;
 }
+
 
 async function getWikiSummary(preferred){
   // preferred: nombre común o científico (p.ej., "Common bottlenose dolphin" o "Tursiops truncatus")
