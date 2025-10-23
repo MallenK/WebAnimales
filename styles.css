@@ -39,4 +39,9 @@ body{margin:0; font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif; bac
 .link{color:#0f766e; text-decoration:none}
 .link:hover{text-decoration:underline}
 .foot{padding:16px; text-align:center; color:var(--muted)}
+
+.toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.chip{border:1px solid var(--stroke); background:#fff; color:var(--ink); padding:8px 12px; border-radius:999px; cursor:pointer; font-weight:600}
+.chip.active{border-color:var(--accent2); box-shadow:0 0 0 2px rgba(245,158,11,.15)}
+
 @media (max-width: 900px){ .layout{grid-template-columns:1fr} .left{min-height:50vh} }
