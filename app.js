@@ -2,15 +2,28 @@
 const ENDPOINTS = {
   // iNaturalist v1
   taxa: (q) => `https://api.inaturalist.org/v1/taxa?q=${encodeURIComponent(q)}&rank=species`,
-  observations: ({ taxon_id, place_id, per_page=200 }) =>
-    `https://api.inaturalist.org/v1/observations?${[
-      taxon_id?`taxon_id=${taxon_id}`:null,
-      place_id?`place_id=${place_id}`:null,
-      "order=desc","order_by=created_at","geo=true","verifiable=true",`per_page=${per_page}`
-    ].filter(Boolean).join("&")}`,
-  speciesCounts: (place_id) => `https://api.inaturalist.org/v1/observations/species_counts?place_id=${place_id}&per_page=50`,
+  observations: (p) => {
+    // p: { taxon_id?, place_id?, lat?, lng?, radius?, per_page? }
+    const base = [
+      p.taxon_id?`taxon_id=${p.taxon_id}`:null,
+      p.place_id?`place_id=${p.place_id}`:null,
+      (p.lat!=null&&p.lng!=null)?`lat=${p.lat}&lng=${p.lng}`:null,
+      p.radius?`radius=${p.radius}`:null, // km
+      "order=desc","order_by=created_at","geo=true","verifiable=true",
+      `per_page=${p.per_page??200}`
+    ].filter(Boolean).join("&");
+    return `https://api.inaturalist.org/v1/observations?${base}`;
+  },
+  speciesCounts: (p) => {
+    const base = [
+      p.place_id?`place_id=${p.place_id}`:null,
+      (p.lat!=null&&p.lng!=null)?`lat=${p.lat}&lng=${p.lng}`:null,
+      p.radius?`radius=${p.radius}`:null, // km
+      "per_page=50"
+    ].filter(Boolean).join("&");
+    return `https://api.inaturalist.org/v1/observations/species_counts?${base}`;
+  },
   places: (q) => `https://api.inaturalist.org/v1/places/autocomplete?q=${encodeURIComponent(q)}`,
-  // Wikipedia REST summary (lang inferred later)
   wikiSummary: (lang, title) => `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
 };
 
@@ -23,7 +36,7 @@ const I18N = {
     mode_species: "Especie",
     mode_place: "Zona",
     btn_search: "Buscar",
-    search_hint: "Sugerencia: escribe un país, región o el nombre científico.",
+    search_hint: "Clic en el globo para listar especies de esa zona.",
     results_title: "Resultados"
   },
   ca: {
@@ -33,13 +46,13 @@ const I18N = {
     mode_species: "Espècie",
     mode_place: "Zona",
     btn_search: "Cercar",
-    search_hint: "Consell: escriu un país, regió o el nom científic.",
+    search_hint: "Clica el globus per llistar espècies d'aquella zona.",
     results_title: "Resultats"
   }
 };
 let lang = "es";
 
-// ==== UI basics ====
+// ==== UI helpers ====
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 function setLang(next){
@@ -55,12 +68,12 @@ setLang('es');
 
 // ==== Globe ====
 const globe = Globe()
-  .globeImageUrl('//unpkg.com/three-globe/example/img/earth-dark.jpg')
+  .globeImageUrl('//unpkg.com/three-globe/example/img/earth-blue-marble.jpg')
   .bumpImageUrl('//unpkg.com/three-globe/example/img/earth-topology.png')
   .pointAltitude(0.01)
   .pointRadius(0.15)
-  .pointColor(() => '#f59e0b')
-  .backgroundColor('#000')
+  .pointColor(() => '#f59e0b')   // naranja
+  .backgroundColor('#eef2f7')
   (document.getElementById('globe'));
 
 let points = [];
@@ -68,15 +81,15 @@ function renderPoints(arr){
   globe.pointsData(arr);
   globe.pointLat(d=>d.latitude).pointLng(d=>d.longitude);
 }
+function flyTo(lat,lng,alt=1.8){ globe.pointOfView({ lat, lng, altitude: alt }, 1200); }
 
-// Fit to data
-function flyToFirst(arr){
-  if(!arr.length) return;
-  const { latitude: lat, longitude: lng } = arr[0];
-  globe.pointOfView({ lat, lng, altitude: 1.8 }, 1200);
-}
+// Clic en el globo -> especies cercanas + pintar puntos
+globe.onGlobeClick(async ({lat, lng})=>{
+  const radius = Number($('#radiusKm').value || 250);
+  await loadSpeciesByArea({lat, lng, radius});
+});
 
-// ==== Data helpers ====
+// ==== Data ====
 async function fetchJSON(url){
   const r = await fetch(url);
   if(!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -84,7 +97,6 @@ async function fetchJSON(url){
 }
 
 async function getWikiSummary(title){
-  // try ES then CA then EN
   for(const l of [lang, 'ca', 'es', 'en']){
     try{
       const j = await fetchJSON(ENDPOINTS.wikiSummary(l, title));
@@ -94,28 +106,64 @@ async function getWikiSummary(title){
   return {};
 }
 
-// Build result item
 function li(item){
   const el = document.createElement('li');
   el.innerHTML = `<img src="${item.thumb||''}" alt="">
   <div><div><strong>${item.title||''}</strong></div><div class="muted">${item.subtitle||''}</div></div>`;
-  el.addEventListener('click', ()=> showDetails(item));
+  el.addEventListener('click', ()=> showDetails(item, true));
   return el;
 }
 
-function showDetails(item){
+function showDetails(item, pan=false){
   $('#details').hidden = false;
   $('#title').textContent = item.title || '';
   $('#sci').textContent = item.subtitle || '';
-  $('#rank').textContent = item.rank ? `Rank: ${item.rank}` : '';
+  $('#rank').textContent = item.rank ? `Rango: ${item.rank}` : '';
   $('#summary').textContent = item.summary || '';
   $('#thumb').src = item.thumb || '';
   const a = $('#wiki');
   a.href = item.wiki || '#';
   a.style.display = item.wiki ? 'inline-block' : 'none';
+  if(pan && item.firstPoint) flyTo(item.firstPoint.lat, item.firstPoint.lng, 2.2);
 }
 
-// ==== Search flow ====
+// ==== Core flows ====
+// 1) Clic en globo: especies alrededor
+async function loadSpeciesByArea({lat, lng, radius}){
+  $('#list').innerHTML = '<li>Cargando…</li>';
+  $('#details').hidden = true;
+
+  try{
+    // lista de especies
+    const sc = await fetchJSON(ENDPOINTS.speciesCounts({ lat, lng, radius }));
+    const items = [];
+    for(const s of (sc.results||[])){
+      const t = s.taxon || {};
+      const common = t.preferred_common_name || t.name;
+      const wikiTitle = (t.wikipedia_url && t.wikipedia_url.split('/').pop()) || t.name;
+      const { url, extract, thumb } = await getWikiSummary(wikiTitle);
+      items.push({
+        id: t.id, title: common, subtitle: t.name, rank: t.rank,
+        wiki: url || t.wikipedia_url, summary: extract || '', thumb: thumb || t.default_photo?.square_url
+      });
+    }
+    $('#list').innerHTML = '';
+    items.slice(0,50).forEach(it=> $('#list').appendChild(li(it)));
+
+    // puntos de observación para esa zona
+    const obs = await fetchJSON(ENDPOINTS.observations({ lat, lng, radius, per_page: 200 }));
+    points = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] }))
+              .filter(p=>Number.isFinite(p.latitude));
+    renderPoints(points);
+    flyTo(lat, lng, 1.6);
+  }catch(err){
+    console.error(err);
+    $('#list').innerHTML = `<li>Error: ${String(err.message||err)}</li>`;
+    renderPoints([]);
+  }
+}
+
+// 2) Búsqueda: animal/especie/zona
 $('#searchForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const mode = new FormData(e.target).get('mode');
@@ -125,33 +173,14 @@ $('#searchForm').addEventListener('submit', async (e)=>{
 
   try{
     if(mode === 'place'){
-      // resolve place -> species list + observations
       const places = await fetchJSON(ENDPOINTS.places(q));
-      if(!places.results?.length){ $('#list').innerHTML = '<li>No results</li>'; renderPoints([]); return; }
+      if(!places.results?.length){ $('#list').innerHTML = '<li>Sin resultados</li>'; renderPoints([]); return; }
       const place = places.results[0];
-      // species list
-      const sc = await fetchJSON(ENDPOINTS.speciesCounts(place.id));
-      const items = [];
-      for(const s of (sc.results||[]).slice(0,20)){
-        const taxon = s.taxon || {};
-        const name = taxon.preferred_common_name || taxon.name;
-        const wiki = taxon.wikipedia_url || null;
-        const { url, extract, thumb } = wiki ? await getWikiSummary(wiki.split('/').pop()) : {};
-        items.push({
-          id: taxon.id, title: name, subtitle: taxon.name, rank: taxon.rank,
-          wiki: url || wiki, summary: extract || '', thumb: thumb || taxon.default_photo?.square_url
-        });
-      }
-      items.forEach(it=> $('#list').appendChild(li(it)));
-
-      // observations to plot
-      const obs = await fetchJSON(ENDPOINTS.observations({ place_id: place.id, per_page: 200 }));
-      points = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] })).filter(p=>Number.isFinite(p.latitude));
-      renderPoints(points); flyToFirst(points);
+      await loadSpeciesByArea({ lat: place.latitude, lng: place.longitude, radius: Number($('#radiusKm').value || 250) });
     } else {
-      // resolve taxon -> observations
+      // taxón
       const taxa = await fetchJSON(ENDPOINTS.taxa(q));
-      if(!taxa.results?.length){ $('#list').innerHTML = '<li>No results</li>'; renderPoints([]); return; }
+      if(!taxa.results?.length){ $('#list').innerHTML = '<li>Sin resultados</li>'; renderPoints([]); return; }
       const t = taxa.results[0];
       const common = t.preferred_common_name || t.name;
       const wikiTitle = (t.wikipedia_url && t.wikipedia_url.split('/').pop()) || t.name;
@@ -161,10 +190,13 @@ $('#searchForm').addEventListener('submit', async (e)=>{
         wiki: url || t.wikipedia_url, summary: extract || '', thumb: thumb || t.default_photo?.square_url
       };
       $('#list').appendChild(li(item));
-
+      // pinta todas las observaciones del taxón
       const obs = await fetchJSON(ENDPOINTS.observations({ taxon_id: t.id, per_page: 200 }));
-      points = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] })).filter(p=>Number.isFinite(p.latitude));
-      renderPoints(points); flyToFirst(points);
+      const pts = (obs.results||[]).map(o=>({ latitude:o.geojson?.coordinates[1], longitude:o.geojson?.coordinates[0] }))
+                    .filter(p=>Number.isFinite(p.latitude));
+      points = pts;
+      renderPoints(points);
+      if(points[0]) flyTo(points[0].latitude, points[0].longitude, 2.0);
       showDetails(item);
     }
   }catch(err){
