@@ -86,6 +86,13 @@ body{
   box-shadow:0 0 10px var(--accent2);
 }
 
+input[type="range"]{
+  width:100%;
+  accent-color:var(--accent2);
+  cursor:pointer;
+}
+
+
 .panel{
   background:var(--panel);
   border:1px solid var(--stroke);
