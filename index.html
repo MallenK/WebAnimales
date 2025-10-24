@@ -78,6 +78,36 @@
   </section>
 </main>
 
+  <!-- Modal detalles -->
+<div id="modal" class="modal" hidden>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="modal__close" id="modalClose" aria-label="Cerrar">×</button>
+    <div class="modal__header">
+      <img id="mThumb" alt="" class="modal__thumb">
+      <div>
+        <h3 id="modalTitle" class="modal__title"></h3>
+        <div id="mSci" class="modal__sci"></div>
+        <div id="mRank" class="modal__rank"></div>
+      </div>
+    </div>
+    <div class="modal__badges">
+      <span id="mIconic" class="badge"></span>
+      <span id="mStatus" class="badge"></span>
+    </div>
+    <p id="mSummary" class="modal__summary"></p>
+
+    <div id="mAncestry" class="modal__ancestry"></div>
+
+    <div id="mGallery" class="modal__gallery"></div>
+
+    <div class="modal__links">
+      <a id="mWiki" class="link" target="_blank" rel="noopener">Wikipedia</a>
+      <a id="mINat" class="link" target="_blank" rel="noopener">iNaturalist</a>
+    </div>
+  </div>
+</div>
+
+
 <footer class="foot">
   <span>Datos: iNaturalist + Wikipedia</span>
 </footer>
