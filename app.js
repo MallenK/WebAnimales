@@ -31,6 +31,11 @@ const ENDPOINTS = {
     `https://api.inaturalist.org/v1/places/autocomplete?q=${encodeURIComponent(q)}&locale=${locale}`
 };
 
+/* ==== NUEVO: endpoint taxon por id ==== */
+ENDPOINTS.taxon = (id, locale) =>
+  `https://api.inaturalist.org/v1/taxa/${id}?locale=${locale}`;
+
+
 // Wikipedia REST v1 search + summary
 const WIKI = {
   searchTitle: (lang, q) =>
@@ -201,7 +206,7 @@ function li(item){
   const el = document.createElement('li');
   el.innerHTML = `<img src="${item.thumb||''}" alt="">
   <div><div><strong>${item.title||''}</strong></div><div class="muted">${item.subtitle||''}</div></div>`;
-  el.addEventListener('click', ()=> showDetails(item, true));
+  el.addEventListener('click', ()=> openModalForTaxon(item.id, item));
   return el;
 }
 
@@ -308,4 +313,123 @@ async function searchByTaxon({ id, t }){
   if(pts[0]) flyTo(pts[0].latitude, pts[0].longitude, 2.0);
   $('#details').hidden = false;
   showDetails(item);
+}
+
+
+
+// ==== Modal helpers ====
+const modal = document.getElementById('modal');
+const modalClose = document.getElementById('modalClose');
+
+function openModal(){ modal.hidden = false; document.body.style.overflow='hidden'; }
+function closeModal(){ modal.hidden = true; document.body.style.overflow=''; }
+
+modal.addEventListener('click', e=>{ if(e.target === modal) closeModal(); });
+modalClose.addEventListener('click', closeModal);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && !modal.hidden) closeModal(); });
+
+// ==== Cargar detalles ampliados de iNaturalist + Wikipedia ====
+async function openModalForTaxon(id, seed){
+  try{
+    openModal();
+    // placeholder rápido
+    fillModal({
+      title: seed?.title || '',
+      sci: seed?.subtitle || '',
+      rank: seed?.rank || '',
+      summary: seed?.summary || '',
+      thumb: seed?.thumb || '',
+      iconic_taxon_name: '',
+      conservation_status: null,
+      ancestry: [],
+      photos: [],
+      wiki: seed?.wiki || '',
+      inatUrl: `https://www.inaturalist.org/taxa/${id}`
+    });
+
+    // 1) iNaturalist taxa/:id
+    const tResp = await fetchJSON(ENDPOINTS.taxon(id, lang));
+    const t = tResp?.results?.[0] || {};
+
+    // 2) Wikipedia summary preferente usando nombre científico si aún no hay
+    let wikiData = { url: seed?.wiki, extract: seed?.summary, thumb: seed?.thumb };
+    if(!wikiData.extract){
+      const wikiTitle = (t.wikipedia_url && t.wikipedia_url.split('/').pop()) || t.name || seed?.subtitle;
+      wikiData = await getWikiSummary(wikiTitle || '');
+    }
+
+    // 3) Construcción de datos enriquecidos
+    const ancestry = (t.ancestors || []).map(a => a.name).filter(Boolean);
+    const photos = (t.taxon_photos || [])
+      .map(tp => tp.photo?.url?.replace('square', 'medium'))
+      .filter(Boolean)
+      .slice(0, 12); // galería
+
+    const status = t.conservation_status?.status || t.conservation_status?.iucn_status || null;
+    const iconic = t.iconic_taxon_name || '';
+
+    fillModal({
+      title: t.preferred_common_name || t.name || seed?.title || '',
+      sci: t.name || seed?.subtitle || '',
+      rank: t.rank || seed?.rank || '',
+      summary: wikiData.extract || '',
+      thumb: wikiData.thumb || t.default_photo?.square_url || seed?.thumb || '',
+      iconic_taxon_name: iconic,
+      conservation_status: status,
+      ancestry,
+      photos,
+      wiki: wikiData.url || t.wikipedia_url || seed?.wiki || '',
+      inatUrl: `https://www.inaturalist.org/taxa/${id}`
+    });
+
+  }catch(err){
+    console.error(err);
+    fillModal({ summary:`Error: ${String(err.message||err)}` });
+  }
+}
+
+function fillModal(d){
+  // cabecera
+  document.getElementById('mThumb').src = d.thumb || '';
+  document.getElementById('modalTitle').textContent = d.title || '';
+  document.getElementById('mSci').textContent = d.sci || '';
+  document.getElementById('mRank').textContent = d.rank ? `Rango: ${d.rank}` : '';
+
+  // badges
+  const mIconic = document.getElementById('mIconic');
+  const mStatus = document.getElementById('mStatus');
+  mIconic.textContent = d.iconic_taxon_name ? `Iconic: ${d.iconic_taxon_name}` : '';
+  mIconic.style.display = d.iconic_taxon_name ? 'inline-block' : 'none';
+  mStatus.textContent = d.conservation_status ? `Estatus: ${d.conservation_status}` : '';
+  mStatus.style.display = d.conservation_status ? 'inline-block' : 'none';
+
+  // resumen
+  document.getElementById('mSummary').textContent = d.summary || '';
+
+  // jerarquía
+  const anc = document.getElementById('mAncestry');
+  anc.innerHTML = '';
+  if (Array.isArray(d.ancestry) && d.ancestry.length){
+    d.ancestry.forEach((name,i)=>{
+      const span = document.createElement('span');
+      span.textContent = name;
+      if(i < d.ancestry.length-1) span.classList.add('sep');
+      anc.appendChild(span);
+    });
+  }
+
+  // galería
+  const gal = document.getElementById('mGallery');
+  gal.innerHTML = '';
+  (d.photos||[]).forEach(src=>{
+    const img = new Image();
+    img.src = src;
+    gal.appendChild(img);
+  });
+
+  // links
+  const mWiki = document.getElementById('mWiki');
+  const mINat = document.getElementById('mINat');
+  if(d.wiki){ mWiki.href = d.wiki; mWiki.style.display='inline-block'; } else { mWiki.style.display='none'; }
+  if(d.inatUrl){ mINat.href = d.inatUrl; mINat.style.display='inline-block'; } else { mINat.style.display='none'; }
 }
