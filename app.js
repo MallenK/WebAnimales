@@ -475,17 +475,30 @@ async function openModalForTaxon(id, seed){
       title: t.preferred_common_name || t.name || seed?.title || '',
       sci: t.name || seed?.subtitle || '',
       rank: t.rank || seed?.rank || '',
-      summary: wikiData.extract || '',
-      thumb: wikiData.thumb || t.default_photo?.square_url || seed?.thumb || '',
-      iconic_taxon_name: iconic,
-      conservation_status: status,
-      ancestry,
-      photos,
-      wiki: wikiData.url || t.wikipedia_url || seed?.wiki || '',
+      rank_level: t.rank_level,                     // NUEVO
+      iconic_taxon_name: t.iconic_taxon_name || '',
+      conservation_status: t.conservation_status?.status || t.conservation_status?.iucn_status || null,
+      establishment_means: t.establishment_means || null,   // NUEVO
+      endemic: Boolean(t.endemic),                           // NUEVO
+      introduced: Boolean(t.introduced),                     // NUEVO
+      threatened: Boolean(t.threatened),                     // NUEVO
+      extinct: Boolean(t.extinct),                           // NUEVO
+      ancestry: (t.ancestors || []).map(a => a.name).filter(Boolean),
+      photos: (t.taxon_photos || []).map(tp => tp.photo?.url?.replace('square','medium')).filter(Boolean).slice(0,12),
+      // texto
+      ...(await (async ()=>{
+        const wikiTitle = (t.wikipedia_url && t.wikipedia_url.split('/').pop()) || t.name || seed?.subtitle;
+        const w = await getWikiSummary(wikiTitle || '');
+        return {
+          summary: w.extract || seed?.summary || '',
+          thumb: w.thumb || t.default_photo?.square_url || seed?.thumb || '',
+          wiki: w.url || t.wikipedia_url || seed?.wiki || ''
+        };
+      })()),
       inatUrl: `https://www.inaturalist.org/taxa/${id}`
     };
-    console.debug("[MODAL] payload modal:", payload);
     fillModal(payload);
+
 
   }catch(err){
     console.error("[MODAL] error:", err);
@@ -496,11 +509,13 @@ async function openModalForTaxon(id, seed){
 }
 
 function fillModal(d){
+  // Cabecera
   document.getElementById('mThumb').src = d.thumb || '';
   document.getElementById('modalTitle').textContent = d.title || '';
   document.getElementById('mSci').textContent = d.sci || '';
   document.getElementById('mRank').textContent = d.rank ? `Rango: ${d.rank}` : '';
 
+  // Badges existentes
   const mIconic = document.getElementById('mIconic');
   const mStatus = document.getElementById('mStatus');
   mIconic.textContent = d.iconic_taxon_name ? `Iconic: ${d.iconic_taxon_name}` : '';
@@ -508,8 +523,10 @@ function fillModal(d){
   mStatus.textContent = d.conservation_status ? `Estatus: ${d.conservation_status}` : '';
   mStatus.style.display = d.conservation_status ? 'inline-block' : 'none';
 
+  // Resumen
   document.getElementById('mSummary').textContent = d.summary || '';
 
+  // Jerarquía
   const anc = document.getElementById('mAncestry');
   anc.innerHTML = '';
   if (Array.isArray(d.ancestry) && d.ancestry.length){
@@ -521,6 +538,31 @@ function fillModal(d){
     });
   }
 
+  // Hechos adicionales (si no tienes contenedor, reutiliza mAncestry o añade uno)
+  const facts = [
+    d.rank_level!=null ? `Nivel de rango: ${d.rank_level}` : null,
+    d.establishment_means ? `Establecimiento: ${d.establishment_means}` : null,
+    d.endemic ? 'Endémica: sí' : null,
+    d.introduced ? 'Introducida: sí' : null,
+    d.threatened ? 'Amenazada: sí' : null,
+    d.extinct ? 'Extinta: sí' : null
+  ].filter(Boolean);
+
+  // Inserta los “facts” detrás del resumen
+  if(facts.length){
+    const blockId = 'mFacts';
+    let block = document.getElementById(blockId);
+    if(!block){
+      block = document.createElement('ul');
+      block.id = blockId;
+      block.style.margin = '8px 0';
+      block.style.paddingLeft = '18px';
+      document.getElementById('mSummary').insertAdjacentElement('afterend', block);
+    }
+    block.innerHTML = facts.map(f=>`<li>${f}</li>`).join('');
+  }
+
+  // Galería
   const gal = document.getElementById('mGallery');
   gal.innerHTML = '';
   (d.photos||[]).forEach(src=>{
@@ -529,8 +571,12 @@ function fillModal(d){
     gal.appendChild(img);
   });
 
+  // Links
   const mWiki = document.getElementById('mWiki');
   const mINat = document.getElementById('mINat');
-  if(d.wiki){ mWiki.href = d.wiki; mWiki.style.display='inline-block'; } else { mWiki.style.display='none'; }
-  if(d.inatUrl){ mINat.href = d.inatUrl; mINat.style.display='inline-block'; } else { mINat.style.display='none'; }
+  mWiki.style.display = d.wiki ? 'inline-block' : 'none';
+  if(d.wiki) mWiki.href = d.wiki;
+  mINat.style.display = d.inatUrl ? 'inline-block' : 'none';
+  if(d.inatUrl) mINat.href = d.inatUrl;
 }
+
