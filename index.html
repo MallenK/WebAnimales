@@ -3,85 +3,158 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Animals Globe</title>
-  <meta name="description" content="Consulta qué animales aparecen en cada zona del mundo." />
+  <title>Animals Globe — Buscador de especies</title>
+  <meta name="description" content="Descubre qué animales y plantas existen en cualquier zona del mundo. Datos reales de iNaturalist." />
+  <meta name="theme-color" content="#f59e0b" />
+  <meta property="og:title" content="Animals Globe" />
+  <meta property="og:description" content="Buscador interactivo de animales y plantas por zona geográfica." />
+  <meta property="og:type" content="website" />
+  <link rel="manifest" href="./manifest.json" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./styles.css">
-  <script src="https://unpkg.com/globe.gl"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 </head>
 <body>
+
 <header class="topbar">
-  <div class="brand">Animals Globe</div>
-  <nav class="lang">
-    <button data-lang="es" class="lang-btn active">ES</button>
-    <button data-lang="ca" class="lang-btn">CAT</button>
+  <div class="brand">🌍 Animals Globe</div>
+  <nav class="topbar__actions">
+    <button id="favToggle" class="icon-btn" type="button">
+      ★ <span data-i="favorites">Favoritos</span>
+      <span id="fav-badge" class="fav-badge" hidden>0</span>
+    </button>
+    <button id="shareBtn" class="icon-btn" type="button">
+      ↗ <span data-i="share">Compartir</span>
+    </button>
+    <button id="darkToggle" class="icon-btn icon-btn--dark" type="button" aria-label="Cambiar tema">☾</button>
+    <div class="lang">
+      <button data-lang="es" class="lang-btn active">ES</button>
+      <button data-lang="ca" class="lang-btn">CAT</button>
+    </div>
   </nav>
 </header>
 
+<!-- Favorites slide-in panel -->
+<aside id="favoritesPanel" class="fav-panel" aria-label="Favoritos">
+  <div class="fav-panel__header">
+    <h3 data-i="favorites">Favoritos</h3>
+    <button id="favClose" class="icon-btn" type="button" aria-label="Cerrar">×</button>
+  </div>
+  <ul id="favList" class="fav-list"></ul>
+</aside>
+
 <main class="layout">
-    <div class="panel toolbar" id="filters">
-      <button class="chip active" data-iconic="">Todos</button>
-      <button class="chip" data-iconic="Plantae">Plantas</button>
-      <button class="chip" data-iconic="Mammalia">Mamíferos</button>
-      <button class="chip" data-iconic="Aves">Aves</button>
-      <button class="chip" data-iconic="Reptilia">Reptiles</button>
-      <button class="chip" data-iconic="Amphibia">Anfibios</button>
-      <button class="chip" data-iconic="Actinopterygii">Peces</button>
-      <button class="chip" data-iconic="Insecta">Insectos</button>
-      <button class="chip" data-iconic="Fungi">Hongos</button>
-    </div>
 
-  
-  <section class="left">
-    <div id="globe" aria-label="globo interactivo"></div>
-    <div class="legend">
-      <span class="dot"></span><span data-i="legend_points">Observaciones recientes</span>
-    </div>
-  </section>
+  <!-- Fila superior: Buscar | Resultados -->
+  <div class="top-panels">
 
-  <section class="right">
     <form id="searchForm" class="panel">
       <h2 data-i="search_title">Buscar</h2>
+
+      <div id="filters" class="iconic-filter">
+        <button class="chip chip--sm active" data-iconic="" type="button">Todos</button>
+        <button class="chip chip--sm" data-iconic="Plantae" type="button">🌿 Plantas</button>
+        <button class="chip chip--sm" data-iconic="Mammalia" type="button">🦁 Mamíferos</button>
+        <button class="chip chip--sm" data-iconic="Aves" type="button">🐦 Aves</button>
+        <button class="chip chip--sm" data-iconic="Reptilia" type="button">🦎 Reptiles</button>
+        <button class="chip chip--sm" data-iconic="Amphibia" type="button">🐸 Anfibios</button>
+        <button class="chip chip--sm" data-iconic="Actinopterygii" type="button">🐟 Peces</button>
+        <button class="chip chip--sm" data-iconic="Insecta" type="button">🦋 Insectos</button>
+        <button class="chip chip--sm" data-iconic="Fungi" type="button">🍄 Hongos</button>
+      </div>
+
       <div class="segmented">
         <label><input type="radio" name="mode" value="animal" checked><span data-i="mode_animal">Animal</span></label>
         <label><input type="radio" name="mode" value="species"><span data-i="mode_species">Especie</span></label>
         <label><input type="radio" name="mode" value="place"><span data-i="mode_place">Zona</span></label>
       </div>
-      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España" aria-label="Búsqueda">
+      <input id="q" class="input" type="search" placeholder="lobo ibérico / Panthera leo / España" aria-label="Búsqueda" autocomplete="off">
+      <div id="historyChips" class="history-chips"></div>
       <div class="row">
         <label class="label" for="radiusKm">Radio al clicar</label>
         <input id="radiusKm" type="range" min="25" max="1000" value="250" step="25" oninput="radiusVal.textContent=this.value">
         <span><span id="radiusVal">250</span> km</span>
       </div>
       <button class="btn" type="submit" data-i="btn_search">Buscar</button>
-      <p class="hint" data-i="search_hint">Clica el globo para ver especies de la zona seleccionada.</p>
+      <p class="hint" data-i="search_hint">Clica el mapa para ver especies de la zona seleccionada.</p>
     </form>
 
     <section class="panel" id="results">
-      <h3 data-i="results_title">Resultados</h3>
-      <ul id="list" class="list"></ul>
+      <div class="results-tabs">
+        <button class="tab-btn active" data-tab="results" type="button" data-i="results_title">Resultados</button>
+        <button class="tab-btn" data-tab="saved" type="button">★ <span data-i="saved">Guardados</span></button>
+      </div>
+
+      <div id="resultsView">
+        <div id="speciesOfDay" class="species-of-day" hidden></div>
+        <div class="results-toolbar">
+          <div class="results-search">
+            <input id="resultsFilter" class="input input--sm" type="search"
+                   placeholder="Filtrar resultados…" autocomplete="off" aria-label="Filtrar resultados">
+            <span id="resultsCount" class="results-count"></span>
+          </div>
+          <div class="view-toggle">
+            <button id="viewList" class="view-btn active" type="button" title="Vista lista">☰</button>
+            <button id="viewGrid" class="view-btn" type="button" title="Vista cuadrícula">⊞</button>
+          </div>
+        </div>
+        <div class="iucn-filters" id="iucnFilters">
+          <button class="chip chip--sm active" data-iucn="" type="button">Todos</button>
+          <button class="chip chip--sm chip--cr" data-iucn="CR" type="button">CR</button>
+          <button class="chip chip--sm chip--en" data-iucn="EN" type="button">EN</button>
+          <button class="chip chip--sm chip--vu" data-iucn="VU" type="button">VU</button>
+          <button class="chip chip--sm chip--nt" data-iucn="NT" type="button">NT</button>
+          <button class="chip chip--sm chip--lc" data-iucn="LC" type="button">LC</button>
+        </div>
+        <ul id="list" class="list"></ul>
+      </div>
+
+      <div id="savedView" hidden>
+        <input id="savedFilter" class="input input--sm" type="search"
+               placeholder="Buscar en guardados…" autocomplete="off" aria-label="Buscar en guardados" style="margin-bottom:10px">
+        <ul id="savedList" class="list"></ul>
+      </div>
     </section>
 
-    <section class="panel" id="details" hidden>
-      <h3 id="title"></h3>
-      <div class="meta">
-        <img id="thumb" alt="" />
-        <div>
-          <div id="sci"></div>
-          <div id="rank"></div>
-        </div>
-      </div>
-      <p id="summary"></p>
-      <a id="wiki" class="link" target="_blank" rel="noopener">Wikipedia</a>
-    </section>
+  </div>
+
+  <!-- Mapa a ancho completo -->
+  <section class="map-section">
+    <div id="globe" aria-label="Mapa interactivo — clica para explorar especies de la zona"></div>
+    <div id="globeLoader" class="globe-loader" hidden></div>
+    <div class="legend">
+      <span class="dot"></span>
+      <span data-i="legend_points">Observaciones recientes</span>
+      <button id="heatmapToggle" class="chip chip--sm" type="button" data-i="heatmap">Mapa de calor</button>
+    </div>
   </section>
+
+  <!-- Panel de detalle (aparece bajo el mapa al buscar por taxón) -->
+  <section class="panel" id="details" hidden>
+    <h3 id="title"></h3>
+    <div class="meta">
+      <img id="thumb" alt="" />
+      <div>
+        <div id="sci"></div>
+        <div id="rank"></div>
+      </div>
+    </div>
+    <p id="summary"></p>
+    <a id="wiki" class="link" target="_blank" rel="noopener">Wikipedia</a>
+  </section>
+
 </main>
 
-  <!-- Modal detalles -->
+<!-- Species detail modal -->
 <div id="modal" class="modal" hidden>
-  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <button class="modal__close" id="modalClose" aria-label="Cerrar">×</button>
+  <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle" tabindex="-1">
+    <div class="modal__toolbar">
+      <button class="fav-star" id="mFavBtn" type="button" aria-label="Añadir a favoritos">★</button>
+      <button class="modal__close" id="modalClose" type="button" aria-label="Cerrar">×</button>
+    </div>
     <div class="modal__header">
       <img id="mThumb" alt="" class="modal__thumb">
       <div>
@@ -91,27 +164,32 @@
       </div>
     </div>
     <div class="modal__badges">
-      <span id="mIconic" class="badge"></span>
-      <span id="mStatus" class="badge"></span>
+      <span id="mIconic" class="badge" hidden></span>
+      <span id="mStatus" class="badge" hidden></span>
     </div>
     <p id="mSummary" class="modal__summary"></p>
-
     <div id="mAncestry" class="modal__ancestry"></div>
-
     <div id="mGallery" class="modal__gallery"></div>
-
-    <div class="modal__links">
+    <div class="modal__links" id="mLinks">
       <a id="mWiki" class="link" target="_blank" rel="noopener">Wikipedia</a>
       <a id="mINat" class="link" target="_blank" rel="noopener">iNaturalist</a>
     </div>
   </div>
 </div>
 
+<!-- Lightbox -->
+<div id="lightbox" class="lightbox" hidden>
+  <button class="lightbox__close" id="lightboxClose" type="button" aria-label="Cerrar">×</button>
+  <button class="lightbox__nav lightbox__prev" id="lightboxPrev" type="button" aria-label="Anterior">‹</button>
+  <img id="lightboxImg" class="lightbox__img" alt="" />
+  <button class="lightbox__nav lightbox__next" id="lightboxNext" type="button" aria-label="Siguiente">›</button>
+  <div id="lightboxCounter" class="lightbox__counter"></div>
+</div>
 
 <footer class="foot">
-  <span>Datos: iNaturalist + Wikipedia</span>
+  <span>Datos: iNaturalist · Wikipedia · Xeno-canto</span>
 </footer>
 
-<script src="./app.js"></script>
+<script type="module" src="./src/app.js"></script>
 </body>
 </html>
